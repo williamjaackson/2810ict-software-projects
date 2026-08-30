@@ -39,6 +39,9 @@ class DataIngestion:
         return [row for row in sheet.iter_rows(values_only=True)]
     
     def _parse_timestamp(self, timestamp: str):
+        if isinstance(timestamp, datetime) or timestamp is None:
+            return timestamp
+        
         for timestamp_format in TIMESTAMP_FORMATS:
             try:
                 return datetime.strptime(timestamp, timestamp_format)
