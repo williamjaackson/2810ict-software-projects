@@ -22,7 +22,7 @@ class FileReader:
         if reader is None:
             raise ValueError(f"Unsupported file type: {suffix}")
 
-        return reader(self.file_path)
+        return reader()
 
     def _read_csv(self):
         with open(self.file_path, "r") as file:
