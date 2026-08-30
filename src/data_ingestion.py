@@ -12,6 +12,8 @@ TIMESTAMP_FORMATS = ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d")
 class DataIngestion:
     def __init__(self, file_path: str):
         self.file_path = Path(file_path)
+        if not self.file_path.is_file(): raise FileNotFoundError(f"File not found: {file_path}")
+
         self.reader = self._get_reader()
     
     def __call__(self):
@@ -31,12 +33,12 @@ class DataIngestion:
     def _read_csv(self, path: Path):
         with open(path, "r") as file:
             reader = csv.reader(file)
-            return [row for row in reader]
+            return list(reader)
 
     def _read_excel(self, path: Path):
         workbook = excel.load_workbook(path)
         sheet = workbook.active
-        return [row for row in sheet.iter_rows(values_only=True)]
+        return list(sheet.iter_rows(values_only=True))
     
     def _parse_timestamp(self, timestamp: str):
         if isinstance(timestamp, datetime) or timestamp is None:
@@ -59,7 +61,7 @@ class DataIngestion:
         records  = {}
         warnings = []
 
-        if len(data) == 0:
+        if len(data) < 2:
             raise ValueError("No data found")
 
         headers = [header.lower() for header in data[0]]
