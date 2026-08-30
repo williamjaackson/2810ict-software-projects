@@ -9,36 +9,37 @@ KWH_HEADER = "kwh"
 
 TIMESTAMP_FORMATS = ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d")
 
-class DataIngestion:
+class FileReader:
     def __init__(self, file_path):
         self.file_path = Path(file_path)
         if not self.file_path.is_file(): raise FileNotFoundError(f"File not found: {file_path}")
 
-        self.reader = self._get_reader()
-    
     def __call__(self):
-        data = self.reader(self.file_path)
-        return self._ingest_data(data)
-
-    def _get_reader(self):
+        readers = {".csv": self._read_csv, ".xlsx": self._read_excel}
         suffix = self.file_path.suffix.lower()
-        match suffix:
-            case ".csv":
-                return self._read_csv
-            case ".xlsx":
-                return self._read_excel
-            case _:
-                raise ValueError(f"Unsupported file type: {suffix}")
-    
-    def _read_csv(self, path):
-        with open(path, "r") as file:
+        reader = readers.get(suffix)
+
+        if reader is None:
+            raise ValueError(f"Unsupported file type: {suffix}")
+
+        return reader(self.file_path)
+
+    def _read_csv(self):
+        with open(self.file_path, "r") as file:
             reader = csv.reader(file)
             return list(reader)
-
-    def _read_excel(self, path):
-        workbook = excel.load_workbook(path)
+    
+    def _read_excel(self):
+        workbook = excel.load_workbook(self.file_path)
         sheet = workbook.active
         return list(sheet.iter_rows(values_only=True))
+
+class DataIngestion:
+    def __init__(self, file_path):
+        self.file_reader = FileReader(file_path)
+    
+    def __call__(self):
+        return self._ingest_data(self.file_reader())
     
     def _parse_timestamp(self, timestamp):
         if isinstance(timestamp, datetime):
