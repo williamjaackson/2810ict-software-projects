@@ -137,6 +137,25 @@ class TestIngestData(unittest.TestCase):
         self.assertEqual(records, {datetime(2024, 1, 1, 0, 0, 0): 2.0})
         self.assertEqual(warnings, ["Invalid timestamp: not-a-timestamp"])
 
+    def test_records_are_returned_in_timestamp_order(self):
+        data = [
+            ["timestamp", "kwh"],
+            ["2024-01-01 02:00:00", "0.3"],
+            ["2024-01-01 00:00:00", "0.1"],
+            ["2024-01-01 01:00:00", "0.2"],
+        ]
+        records, warnings = self.ingestion._ingest_data(data)
+        self.assertEqual(
+            list(records),
+            [
+                datetime(2024, 1, 1, 0, 0, 0),
+                datetime(2024, 1, 1, 1, 0, 0),
+                datetime(2024, 1, 1, 2, 0, 0),
+            ],
+        )
+        self.assertEqual(warnings, [])
+
+
 
 class TestFileReader(unittest.TestCase):
     def test_missing_file_raises_file_not_found(self):
