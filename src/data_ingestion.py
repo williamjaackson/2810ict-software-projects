@@ -65,7 +65,7 @@ class DataIngestion:
         if len(data) < 2:
             raise ValueError("No data found")
 
-        headers = [header.lower() for header in data[0]]
+        headers = [str(header).lower() for header in data[0]]
         
         if TIMESTAMP_HEADER not in headers or KWH_HEADER not in headers:
             raise ValueError(f"Timestamp or KWH header not found: {TIMESTAMP_HEADER} or {KWH_HEADER}")
