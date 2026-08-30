@@ -10,7 +10,7 @@ KWH_HEADER = "kwh"
 TIMESTAMP_FORMATS = ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d")
 
 class DataIngestion:
-    def __init__(self, file_path: str):
+    def __init__(self, file_path):
         self.file_path = Path(file_path)
         if not self.file_path.is_file(): raise FileNotFoundError(f"File not found: {file_path}")
 
@@ -30,34 +30,34 @@ class DataIngestion:
             case _:
                 raise ValueError(f"Unsupported file type: {suffix}")
     
-    def _read_csv(self, path: Path):
+    def _read_csv(self, path):
         with open(path, "r") as file:
             reader = csv.reader(file)
             return list(reader)
 
-    def _read_excel(self, path: Path):
+    def _read_excel(self, path):
         workbook = excel.load_workbook(path)
         sheet = workbook.active
         return list(sheet.iter_rows(values_only=True))
     
-    def _parse_timestamp(self, timestamp: str):
-        if isinstance(timestamp, datetime) or timestamp is None:
+    def _parse_timestamp(self, timestamp):
+        if isinstance(timestamp, datetime):
             return timestamp
         
         for timestamp_format in TIMESTAMP_FORMATS:
             try:
                 return datetime.strptime(timestamp, timestamp_format)
-            except ValueError:
+            except (ValueError, TypeError):
                 continue
         return None
     
-    def _parse_kwh(self, kwh: str):
+    def _parse_kwh(self, kwh):
         try:
             return float(kwh)
-        except ValueError:
+        except (ValueError, TypeError):
             return None
     
-    def _ingest_data(self, data: list[list[str]]):
+    def _ingest_data(self, data):
         records  = {}
         warnings = []
 
