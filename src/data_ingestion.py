@@ -11,21 +11,22 @@ TIMESTAMP_FORMATS = ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d")
 
 class DataIngestion:
     def __init__(self, file_path: str):
-        path = Path(file_path)
-        
-        if not path.is_file(): raise FileNotFoundError(f"File not found: {file_path}")
+        self.file_path = Path(file_path)
+        self.reader = self._get_reader()
+    
+    def __call__(self):
+        data = self.reader(self.file_path)
+        return self._ingest_data(data)
 
-        suffix = path.suffix.lower()
-
+    def _get_reader(self):
+        suffix = self.file_path.suffix.lower()
         match suffix:
             case ".csv":
-                reader = self._read_csv
+                return self._read_csv
             case ".xlsx":
-                reader = self._read_excel
+                return self._read_excel
             case _:
                 raise ValueError(f"Unsupported file type: {suffix}")
-        
-        return self._ingest_data(reader(path))
     
     def _read_csv(self, path: Path):
         with open(path, "r") as file:
@@ -37,7 +38,7 @@ class DataIngestion:
         sheet = workbook.active
         return [row for row in sheet.iter_rows(values_only=True)]
     
-    def _parse_timestamp(self, timestamp: str) -> datetime:
+    def _parse_timestamp(self, timestamp: str):
         for timestamp_format in TIMESTAMP_FORMATS:
             try:
                 return datetime.strptime(timestamp, timestamp_format)
@@ -45,7 +46,7 @@ class DataIngestion:
                 continue
         return None
     
-    def _parse_kwh(self, kwh: str) -> float:
+    def _parse_kwh(self, kwh: str):
         try:
             return float(kwh)
         except ValueError:
