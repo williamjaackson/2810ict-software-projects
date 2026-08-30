@@ -38,7 +38,7 @@ class DataIngestion:
     def __init__(self, file_path):
         self.file_reader = FileReader(file_path)
     
-    def __call__(self):
+    def run(self):
         return self._ingest_data(self.file_reader())
     
     def _parse_timestamp(self, timestamp):
