@@ -56,29 +56,30 @@ class DataIngestion:
         records  = {}
         warnings = []
 
-        data[0] = [header.lower() for header in data[0]]
+        if len(data) == 0:
+            raise ValueError("No data found")
 
-        timestamp_index = data[0].index(TIMESTAMP_HEADER)
-        kwh_index = data[0].index(KWH_HEADER)
+        headers = [header.lower() for header in data[0]]
         
-        if timestamp_index is None or kwh_index is None:
+        if TIMESTAMP_HEADER not in headers or KWH_HEADER not in headers:
             raise ValueError(f"Timestamp or KWH header not found: {TIMESTAMP_HEADER} or {KWH_HEADER}")
         
         for row in data[1:]:
-            timestamp = self._parse_timestamp(row[timestamp_index])
+            cells = dict(zip(headers, row))
+            timestamp = self._parse_timestamp(cells[TIMESTAMP_HEADER])
             if timestamp is None:
-                warnings.append(f"Invalid timestamp: {row[timestamp_index]}")
+                warnings.append(f"Invalid timestamp: {cells[TIMESTAMP_HEADER]}")
                 continue
             
-            kwh = self._parse_kwh(row[kwh_index])
+            kwh = self._parse_kwh(cells[KWH_HEADER])
             if kwh is None or kwh < 0:
-                warnings.append(f"Invalid KWH: {row[kwh_index]}")
+                warnings.append(f"Invalid KWH: {cells[KWH_HEADER]}")
                 continue
-
+                
             if timestamp in records:
                 warnings.append(f"Duplicate timestamp: {timestamp}")
                 continue
 
             records[timestamp] = kwh
-
+            
         return records, warnings
