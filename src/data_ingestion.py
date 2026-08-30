@@ -88,4 +88,4 @@ class DataIngestion:
 
             records[timestamp] = kwh
             
-        return records, warnings
+        return dict(sorted(records.items())), warnings
