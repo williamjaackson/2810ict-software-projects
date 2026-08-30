@@ -72,14 +72,14 @@ class DataIngestion:
         
         for row in data[1:]:
             cells = dict(zip(headers, row))
-            timestamp = self._parse_timestamp(cells[TIMESTAMP_HEADER])
+            timestamp = self._parse_timestamp(cells.get(TIMESTAMP_HEADER))
             if timestamp is None:
-                warnings.append(f"Invalid timestamp: {cells[TIMESTAMP_HEADER]}")
+                warnings.append(f"Invalid timestamp: {cells.get(TIMESTAMP_HEADER)}")
                 continue
             
-            kwh = self._parse_kwh(cells[KWH_HEADER])
+            kwh = self._parse_kwh(cells.get(KWH_HEADER))
             if kwh is None or kwh < 0:
-                warnings.append(f"Invalid KWH: {cells[KWH_HEADER]}")
+                warnings.append(f"Invalid KWH: {cells.get(KWH_HEADER)}")
                 continue
                 
             if timestamp in records:
