@@ -67,6 +67,7 @@ class DataIngestion:
 
 if __name__ == "__main__":
     data_ingestion = DataIngestion("data/data.csv")
-    (timestamps, values), warnings = data_ingestion.run()
-    print(timestamps)
-    print(values)
+    records, warnings = data_ingestion.run()
+
+    print(f"records: {records}")
+    print(f"warnings: {warnings}")
