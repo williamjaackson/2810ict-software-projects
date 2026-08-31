@@ -108,20 +108,38 @@ jobs:
               reason = 'This PR changes Python files and needs approval from @' + QA_REVIEWER + '.';
             }
 
-            const fileList = pythonFiles.map((filename) => '- `' + filename + '`').join('\n');
-
             const body = [
               MARKER,
               '### QA approval required',
               '',
               reason,
               '',
-              'These Python files are changed:',
-              '',
-              fileList,
-              '',
               'Add the `' + SKIP_LABEL + '` label to bypass this gate.',
             ].join('\n');
+
+            // Ask for the review the gate is waiting on. Only when nobody has
+            // reviewed yet or the approval went stale: re-requesting straight
+            // after a CHANGES_REQUESTED would nag the reviewer for work that is
+            // now the author's, and re-requesting an already-open request would
+            // fire a fresh notification on every push.
+            const alreadyRequested = (pr.requested_reviewers || []).some(
+              (user) => sameUser(user.login),
+            );
+            const wantsReview = !latest || latest.state === 'DISMISSED';
+            if (!passed && wantsReview && !alreadyRequested) {
+              try {
+                await github.rest.pulls.requestReviewers({
+                  owner,
+                  repo,
+                  pull_number: issue_number,
+                  reviewers: [QA_REVIEWER],
+                });
+              } catch (error) {
+                core.warning(
+                  'Could not request a review from @' + QA_REVIEWER + ': ' + error.message,
+                );
+              }
+            }
 
             await core.summary
               .addRaw(
