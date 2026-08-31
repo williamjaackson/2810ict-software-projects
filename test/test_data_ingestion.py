@@ -2,10 +2,13 @@ import tempfile
 import unittest
 from datetime import datetime
 from pathlib import Path
+from unittest.mock import patch
 
 import pandas as pd
 
 from src.data_ingestion import DataIngestion, FileReader
+
+SAMPLE_DATASET = Path(__file__).resolve().parent.parent / "sample_usage_data_month.csv"
 
 
 class TestIngestData(unittest.TestCase):
@@ -207,6 +210,74 @@ class TestIngestData(unittest.TestCase):
         )
         self.assertEqual(warnings, [])
 
+    def test_missing_kwh_header_alone_raises_value_error(self):
+        data = pd.DataFrame(
+            [
+                ["2024-01-01 00:00:00", "1.0"],
+            ],
+            columns=["timestamp", "usage"],
+        )
+
+        with self.assertRaises(ValueError):
+            self.ingestion._ingest_data(data)
+
+    def test_non_string_header_does_not_break_lookup(self):
+        data = pd.DataFrame(
+            [
+                ["2024-01-01 00:00:00", "", "1.5"],
+            ],
+            columns=["timestamp", None, "kwh"],
+        )
+
+        records, warnings = self.ingestion._ingest_data(data)
+
+        self.assertEqual(records, {datetime(2024, 1, 1, 0, 0, 0): 1.5})
+        self.assertEqual(warnings, [])
+
+    def test_blank_timestamp_adds_warning(self):
+        data = pd.DataFrame(
+            [
+                [float("nan"), "1.5"],
+                ["2024-01-01 00:00:00", "2.0"],
+            ],
+            columns=["timestamp", "kwh"],
+        )
+
+        records, warnings = self.ingestion._ingest_data(data)
+
+        self.assertEqual(records, {datetime(2024, 1, 1, 0, 0, 0): 2.0})
+        self.assertEqual(warnings, ["Invalid timestamp: nan"])
+
+    def test_blank_kwh_adds_warning(self):
+        data = pd.DataFrame(
+            [
+                ["2024-01-01 00:00:00", float("nan")],
+                ["2024-01-01 01:00:00", 2.0],
+            ],
+            columns=["timestamp", "kwh"],
+        )
+
+        records, warnings = self.ingestion._ingest_data(data)
+
+        self.assertEqual(records, {datetime(2024, 1, 1, 1, 0, 0): 2.0})
+        self.assertEqual(warnings, ["Invalid KWH: nan"])
+
+    def test_duplicate_keeps_first_in_file_not_earliest_timestamp(self):
+        stamp = datetime(2024, 1, 2, 0, 0, 0)
+        data = pd.DataFrame(
+            [
+                ["2024-01-02 00:00:00", "2.0"],
+                ["2024-01-01 00:00:00", "1.0"],
+                ["2024-01-02 00:00:00", "9.9"],
+            ],
+            columns=["timestamp", "kwh"],
+        )
+
+        records, warnings = self.ingestion._ingest_data(data)
+
+        self.assertEqual(records[stamp], 2.0)
+        self.assertEqual(warnings, [f"Duplicate timestamp: {stamp}"])
+
 
 class TestFileReader(unittest.TestCase):
     def test_missing_file_raises_file_not_found(self):
@@ -244,6 +315,48 @@ class TestFileReader(unittest.TestCase):
         finally:
             Path(path).unlink()
 
+    def test_xlsx_returns_rows(self):
+        with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
+            path = tmp.name
+
+        try:
+            pd.DataFrame(
+                {"timestamp": ["2024-01-01 00:00:00"], "kwh": [1.5]}
+            ).to_excel(path, index=False)
+
+            frame = FileReader(path)()
+
+            self.assertEqual(list(frame.columns), ["timestamp", "kwh"])
+            self.assertEqual(len(frame), 1)
+        finally:
+            Path(path).unlink()
+
+    def test_xls_is_routed_to_the_excel_reader(self):
+        with tempfile.NamedTemporaryFile(suffix=".xls", delete=False) as tmp:
+            path = tmp.name
+
+        try:
+            with patch("src.data_ingestion.pd.read_excel") as read_excel:
+                FileReader(path)()
+
+            read_excel.assert_called_once_with(Path(path))
+        finally:
+            Path(path).unlink()
+
+    def test_oversized_file_raises_value_error(self):
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".csv", delete=False, newline=""
+        ) as tmp:
+            tmp.write("timestamp,kwh\n2024-01-01 00:00:00,1.5\n")
+            path = tmp.name
+
+        try:
+            with patch("src.data_ingestion.MAX_FILE_BYTES", 1):
+                with self.assertRaises(ValueError):
+                    FileReader(path)
+        finally:
+            Path(path).unlink()
+
 
 class TestDataIngestion(unittest.TestCase):
     def test_missing_file_raises_file_not_found(self):
@@ -264,6 +377,16 @@ class TestDataIngestion(unittest.TestCase):
 
         self.assertEqual(records, {datetime(2024, 1, 1, 0, 0, 0): 1.5})
         self.assertEqual(warnings, [])
+
+    @unittest.skipUnless(
+        SAMPLE_DATASET.exists(), f"{SAMPLE_DATASET.name} is not in the repository root"
+    )
+    def test_provided_sample_dataset(self):
+        records, warnings = DataIngestion(SAMPLE_DATASET).run()
+
+        self.assertEqual(len(records), 720)
+        self.assertEqual(warnings, [])
+        self.assertAlmostEqual(sum(records.values()), 850.67, places=2)
 
 
 if __name__ == "__main__":
