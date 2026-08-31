@@ -351,7 +351,7 @@ class TestFileReader(unittest.TestCase):
             path = tmp.name
 
         try:
-            with patch("src.data_ingestion.MAX_FILE_BYTES", 1):
+            with patch("src.data_ingestion.FileReader.MAX_FILE_BYTES", 1):
                 with self.assertRaises(ValueError):
                     FileReader(path)
         finally:
