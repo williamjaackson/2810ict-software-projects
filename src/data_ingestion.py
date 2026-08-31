@@ -59,14 +59,24 @@ class DataIngestion:
         timestamps = pd.to_datetime(frame[TIMESTAMP_HEADER], errors="coerce", format="mixed")
         values = pd.to_numeric(frame[KWH_HEADER], errors="coerce")
 
-        clean = pd.DataFrame({"timestamp": timestamps, "kwh": values})
+        bad_timestamp = timestamps.isna()
+        bad_kwh = ~bad_timestamp & (values.isna() | (values < 0))
+
+        clean = pd.DataFrame({"timestamp": timestamps, "kwh": values})[~bad_timestamp & ~bad_kwh]
+        duplicated = clean["timestamp"].duplicated(keep="first")
+
+        warnings = pd.concat([
+            frame.loc[bad_timestamp, TIMESTAMP_HEADER].map(lambda x: f"Invalid timestamp: {x}"),
+            frame.loc[bad_kwh, KWH_HEADER].map(lambda x: f"Invalid KWH: {x}"),
+            clean.loc[duplicated, "timestamp"].map(lambda x: f"Duplicate timestamp: {x}"),
+        ]).sort_index().tolist()
+
+        clean = clean[~duplicated]
 
         records = {
-            timestamp.to_pydatetime(): float(value) 
+            timestamp.to_pydatetime(): float(value)
             for timestamp, value in zip(clean["timestamp"], clean["kwh"])
         }
-
-        warnings = []
 
         return dict(sorted(records.items())), warnings
 
