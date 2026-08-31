@@ -1,9 +1,6 @@
 from pathlib import Path
 import pandas as pd
 
-TIMESTAMP_HEADER = "timestamp"
-KWH_HEADER = "kwh"
-
 class FileReader:
     MAX_FILE_BYTES = 50 * 1024 * 1024
 
@@ -26,6 +23,9 @@ class FileReader:
         return reader(self.file_path)
 
 class DataIngestion:
+    TIMESTAMP_HEADER = "timestamp"
+    KWH_HEADER = "kwh"
+
     def __init__(self, file_path):
         self.file_reader = FileReader(file_path)
     
@@ -38,11 +38,11 @@ class DataIngestion:
 
         frame = frame.rename(columns=lambda x: str(x).strip().lower())
         
-        if TIMESTAMP_HEADER not in frame.columns or KWH_HEADER not in frame.columns:
-            raise ValueError(f"Timestamp or KWH header not found: {TIMESTAMP_HEADER} or {KWH_HEADER}")
+        if DataIngestion.TIMESTAMP_HEADER not in frame.columns or DataIngestion.KWH_HEADER not in frame.columns:
+            raise ValueError(f"Timestamp or KWH header not found: {DataIngestion.TIMESTAMP_HEADER} or {DataIngestion.KWH_HEADER}")
         
-        timestamps = pd.to_datetime(frame[TIMESTAMP_HEADER], errors="coerce", format="mixed")
-        values = pd.to_numeric(frame[KWH_HEADER], errors="coerce")
+        timestamps = pd.to_datetime(frame[DataIngestion.TIMESTAMP_HEADER], errors="coerce", format="mixed")
+        values = pd.to_numeric(frame[DataIngestion.KWH_HEADER], errors="coerce")
 
         bad_timestamp = timestamps.isna()
         bad_kwh = ~bad_timestamp & (values.isna() | (values < 0))
@@ -51,8 +51,8 @@ class DataIngestion:
         duplicated = clean["timestamp"].duplicated(keep="first")
 
         warnings = pd.concat([
-            frame.loc[bad_timestamp, TIMESTAMP_HEADER].map(lambda x: f"Invalid timestamp: {x}"),
-            frame.loc[bad_kwh, KWH_HEADER].map(lambda x: f"Invalid KWH: {x}"),
+            frame.loc[bad_timestamp, DataIngestion.TIMESTAMP_HEADER].map(lambda x: f"Invalid timestamp: {x}"),
+            frame.loc[bad_kwh, DataIngestion.KWH_HEADER].map(lambda x: f"Invalid KWH: {x}"),
             clean.loc[duplicated, "timestamp"].map(lambda x: f"Duplicate timestamp: {x}"),
         ]).sort_index().tolist()
 
