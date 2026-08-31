@@ -4,13 +4,19 @@ import pandas as pd
 TIMESTAMP_HEADER = "timestamp"
 KWH_HEADER = "kwh"
 
+MAX_FILE_BYTES = 50 * 1024 * 1024
+
 class FileReader:
     def __init__(self, file_path):
         self.file_path = Path(file_path)
         if not self.file_path.is_file(): raise FileNotFoundError(f"File not found: {file_path}")
 
+        size = self.file_path.stat().st_size
+        if size > MAX_FILE_BYTES:
+            raise ValueError(f"File is {size / 1024 / 1024:.1f}MB, the limit is {MAX_FILE_BYTES / 1024 / 1024:.0f}MB")
+
     def __call__(self):
-        readers = {".csv": pd.read_csv, ".xlsx": pd.read_excel}
+        readers = {".csv": pd.read_csv, ".xlsx": pd.read_excel, ".xls": pd.read_excel}
         suffix = self.file_path.suffix.lower()
         reader = readers.get(suffix)
 
