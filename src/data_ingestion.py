@@ -30,7 +30,7 @@ class DataIngestion:
         if frame.empty:
             raise ValueError("No data found")
 
-        frame = frame.rename(columns=lambda x: x.lower())
+        frame = frame.rename(columns=lambda x: str(x).strip().lower())
         
         if TIMESTAMP_HEADER not in frame.columns or KWH_HEADER not in frame.columns:
             raise ValueError(f"Timestamp or KWH header not found: {TIMESTAMP_HEADER} or {KWH_HEADER}")
