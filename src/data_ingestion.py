@@ -1,12 +1,8 @@
 from pathlib import Path
-from datetime import datetime
-
 import pandas as pd
 
 TIMESTAMP_HEADER = "timestamp"
 KWH_HEADER = "kwh"
-
-TIMESTAMP_FORMATS = ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d")
 
 class FileReader:
     def __init__(self, file_path):
@@ -29,24 +25,7 @@ class DataIngestion:
     
     def run(self):
         return self._ingest_data(self.file_reader())
-    
-    def _parse_timestamp(self, timestamp):
-        if isinstance(timestamp, datetime):
-            return timestamp
-        
-        for timestamp_format in TIMESTAMP_FORMATS:
-            try:
-                return datetime.strptime(timestamp, timestamp_format)
-            except (ValueError, TypeError):
-                continue
-        return None
-    
-    def _parse_kwh(self, kwh):
-        try:
-            return float(kwh)
-        except (ValueError, TypeError):
-            return None
-    
+
     def _ingest_data(self, frame):
         if frame.empty:
             raise ValueError("No data found")
