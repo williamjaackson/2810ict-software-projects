@@ -47,34 +47,32 @@ class DataIngestion:
         except (ValueError, TypeError):
             return None
     
-    def _ingest_data(self, data):
-        records  = {}
-        warnings = []
-
-        if len(data) < 2:
+    def _ingest_data(self, frame):
+        if frame.empty:
             raise ValueError("No data found")
 
-        headers = [str(header).lower() for header in data[0]]
+        frame = frame.rename(columns=lambda x: x.lower())
         
-        if TIMESTAMP_HEADER not in headers or KWH_HEADER not in headers:
+        if TIMESTAMP_HEADER not in frame.columns or KWH_HEADER not in frame.columns:
             raise ValueError(f"Timestamp or KWH header not found: {TIMESTAMP_HEADER} or {KWH_HEADER}")
         
-        for row in data[1:]:
-            cells = dict(zip(headers, row))
-            timestamp = self._parse_timestamp(cells.get(TIMESTAMP_HEADER))
-            if timestamp is None:
-                warnings.append(f"Invalid timestamp: {cells.get(TIMESTAMP_HEADER)}")
-                continue
-            
-            kwh = self._parse_kwh(cells.get(KWH_HEADER))
-            if kwh is None or kwh < 0:
-                warnings.append(f"Invalid KWH: {cells.get(KWH_HEADER)}")
-                continue
-                
-            if timestamp in records:
-                warnings.append(f"Duplicate timestamp: {timestamp}")
-                continue
+        timestamps = pd.to_datetime(frame[TIMESTAMP_HEADER], errors="coerce", format="mixed")
+        values = pd.to_numeric(frame[KWH_HEADER], errors="coerce")
 
-            records[timestamp] = kwh
-            
+        clean = pd.DataFrame({"timestamp": timestamps, "kwh": values})
+
+        records = {
+            timestamp.to_pydatetime(): float(value) 
+            for timestamp, value in zip(clean["timestamp"], clean["kwh"])
+        }
+
+        warnings = []
+
         return dict(sorted(records.items())), warnings
+
+if __name__ == "__main__":
+    data_ingestion = DataIngestion("data/data.csv")
+    timestamps, values, notes = data_ingestion.run()
+    print(timestamps)
+    print(values)
+    print(notes)
