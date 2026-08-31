@@ -1,8 +1,7 @@
 from pathlib import Path
 from datetime import datetime
 
-import csv
-import openpyxl as excel
+import pandas as pd
 
 TIMESTAMP_HEADER = "timestamp"
 KWH_HEADER = "kwh"
@@ -15,24 +14,14 @@ class FileReader:
         if not self.file_path.is_file(): raise FileNotFoundError(f"File not found: {file_path}")
 
     def __call__(self):
-        readers = {".csv": self._read_csv, ".xlsx": self._read_excel}
+        readers = {".csv": pd.read_csv, ".xlsx": pd.read_excel}
         suffix = self.file_path.suffix.lower()
         reader = readers.get(suffix)
 
         if reader is None:
             raise ValueError(f"Unsupported file type: {suffix}")
 
-        return reader()
-
-    def _read_csv(self):
-        with open(self.file_path, "r") as file:
-            reader = csv.reader(file)
-            return list(reader)
-    
-    def _read_excel(self):
-        workbook = excel.load_workbook(self.file_path)
-        sheet = workbook.active
-        return list(sheet.iter_rows(values_only=True))
+        return reader(self.file_path)
 
 class DataIngestion:
     def __init__(self, file_path):
