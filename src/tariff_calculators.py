@@ -18,7 +18,7 @@ from typing import Any, Mapping, Sequence
 import numpy as np
 import pandas as pd
 
-MINUTES_PER_DAY = 1440
+MINUTES_PER_DAY = 24 * 60
 
 
 class EnergyBillCalculator:
