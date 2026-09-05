@@ -1,91 +1,73 @@
 from pathlib import Path
-from datetime import datetime
-
-import csv
-import openpyxl as excel
-
-TIMESTAMP_HEADER = "timestamp"
-KWH_HEADER = "kwh"
-
-TIMESTAMP_FORMATS = ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d")
+import pandas as pd
 
 class FileReader:
+    MAX_FILE_BYTES = 50 * 1024 * 1024
+
     def __init__(self, file_path):
         self.file_path = Path(file_path)
         if not self.file_path.is_file(): raise FileNotFoundError(f"File not found: {file_path}")
 
+        size = self.file_path.stat().st_size
+        if size > FileReader.MAX_FILE_BYTES:
+            raise ValueError(f"File is {size / 1024 / 1024:.1f}MB, the limit is {FileReader.MAX_FILE_BYTES / 1024 / 1024:.0f}MB")
+
     def __call__(self):
-        readers = {".csv": self._read_csv, ".xlsx": self._read_excel}
+        readers = {".csv": pd.read_csv, ".xlsx": pd.read_excel, ".xls": pd.read_excel}
         suffix = self.file_path.suffix.lower()
         reader = readers.get(suffix)
 
         if reader is None:
             raise ValueError(f"Unsupported file type: {suffix}")
 
-        return reader()
-
-    def _read_csv(self):
-        with open(self.file_path, "r") as file:
-            reader = csv.reader(file)
-            return list(reader)
-    
-    def _read_excel(self):
-        workbook = excel.load_workbook(self.file_path)
-        sheet = workbook.active
-        return list(sheet.iter_rows(values_only=True))
+        return reader(self.file_path)
 
 class DataIngestion:
+    TIMESTAMP_HEADER = "timestamp"
+    KWH_HEADER = "kwh"
+
     def __init__(self, file_path):
         self.file_reader = FileReader(file_path)
     
     def run(self):
         return self._ingest_data(self.file_reader())
-    
-    def _parse_timestamp(self, timestamp):
-        if isinstance(timestamp, datetime):
-            return timestamp
-        
-        for timestamp_format in TIMESTAMP_FORMATS:
-            try:
-                return datetime.strptime(timestamp, timestamp_format)
-            except (ValueError, TypeError):
-                continue
-        return None
-    
-    def _parse_kwh(self, kwh):
-        try:
-            return float(kwh)
-        except (ValueError, TypeError):
-            return None
-    
-    def _ingest_data(self, data):
-        records  = {}
-        warnings = []
 
-        if len(data) < 2:
+    def _ingest_data(self, frame):
+        if frame.empty:
             raise ValueError("No data found")
 
-        headers = [str(header).lower() for header in data[0]]
+        frame = frame.rename(columns=lambda x: str(x).strip().lower())
         
-        if TIMESTAMP_HEADER not in headers or KWH_HEADER not in headers:
-            raise ValueError(f"Timestamp or KWH header not found: {TIMESTAMP_HEADER} or {KWH_HEADER}")
+        if DataIngestion.TIMESTAMP_HEADER not in frame.columns or DataIngestion.KWH_HEADER not in frame.columns:
+            raise ValueError(f"Timestamp or KWH header not found: {DataIngestion.TIMESTAMP_HEADER} or {DataIngestion.KWH_HEADER}")
         
-        for row in data[1:]:
-            cells = dict(zip(headers, row))
-            timestamp = self._parse_timestamp(cells.get(TIMESTAMP_HEADER))
-            if timestamp is None:
-                warnings.append(f"Invalid timestamp: {cells.get(TIMESTAMP_HEADER)}")
-                continue
-            
-            kwh = self._parse_kwh(cells.get(KWH_HEADER))
-            if kwh is None or kwh < 0:
-                warnings.append(f"Invalid KWH: {cells.get(KWH_HEADER)}")
-                continue
-                
-            if timestamp in records:
-                warnings.append(f"Duplicate timestamp: {timestamp}")
-                continue
+        timestamps = pd.to_datetime(frame[DataIngestion.TIMESTAMP_HEADER], errors="coerce", format="mixed")
+        values = pd.to_numeric(frame[DataIngestion.KWH_HEADER], errors="coerce")
 
-            records[timestamp] = kwh
-            
+        bad_timestamp = timestamps.isna()
+        bad_kwh = ~bad_timestamp & (values.isna() | (values < 0))
+
+        clean = pd.DataFrame({"timestamp": timestamps, "kwh": values})[~bad_timestamp & ~bad_kwh]
+        duplicated = clean["timestamp"].duplicated(keep="first")
+
+        warnings = pd.concat([
+            frame.loc[bad_timestamp, DataIngestion.TIMESTAMP_HEADER].map(lambda x: f"Invalid timestamp: {x}"),
+            frame.loc[bad_kwh, DataIngestion.KWH_HEADER].map(lambda x: f"Invalid KWH: {x}"),
+            clean.loc[duplicated, "timestamp"].map(lambda x: f"Duplicate timestamp: {x}"),
+        ]).sort_index().tolist()
+
+        clean = clean[~duplicated]
+
+        records = {
+            timestamp.to_pydatetime(): float(value)
+            for timestamp, value in zip(clean["timestamp"], clean["kwh"])
+        }
+
         return dict(sorted(records.items())), warnings
+
+if __name__ == "__main__":
+    data_ingestion = DataIngestion("data/data.csv")
+    records, warnings = data_ingestion.run()
+
+    print(f"records: {records}")
+    print(f"warnings: {warnings}")
