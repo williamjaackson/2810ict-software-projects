@@ -26,7 +26,7 @@ expected input looks like this:
 import time
 
 import matplotlib
-matplotlib.use("Agg")  # non-GUI backend so this works without a display, switched later for the real GUI
+matplotlib.use("Agg")  # non-GUI backend so this works without a display, FigureCanvasTkAgg still embeds it in Tk
 import matplotlib.pyplot as plt
 
 RENDER_TIME_WARNING_THRESHOLD_SECONDS = 1.5
@@ -146,7 +146,6 @@ def embed_dashboard(parent, bill_results):
  
     import tkinter as tk
     from tkinter import ttk
-    matplotlib.use("TkAgg")
     from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
     start = time.perf_counter()
@@ -166,12 +165,12 @@ def embed_dashboard(parent, bill_results):
     fig = build_comparison_figure(bill_results)
     canvas = FigureCanvasTkAgg(fig, master=frame)
     canvas.draw()
+    plt.close(fig)  # the canvas keeps the figure, pyplot doesn't need to
     canvas.get_tk_widget().pack(fill="both", expand=True)
 
     frame.pack(fill="both", expand=True)
 
     elapsed = time.perf_counter() - start
-    print(f"[debug] embed_dashboard rendered in {elapsed:.3f}s")  # TODO: remove before submitting?
     if elapsed > RENDER_TIME_WARNING_THRESHOLD_SECONDS:
         print(f"[warning] Dashboard render took {elapsed:.2f}s "
               f"(exceeds {RENDER_TIME_WARNING_THRESHOLD_SECONDS}s target)")
