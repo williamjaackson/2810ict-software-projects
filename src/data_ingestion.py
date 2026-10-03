@@ -64,10 +64,3 @@ class DataIngestion:
         }
 
         return dict(sorted(records.items())), warnings
-
-if __name__ == "__main__":
-    data_ingestion = DataIngestion("data/data.csv")
-    records, warnings = data_ingestion.run()
-
-    print(f"records: {records}")
-    print(f"warnings: {warnings}")
